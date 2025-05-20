@@ -1,4 +1,4 @@
-//Ambridge
+//Ambridges
 require([
     "esri/Map",
     "esri/views/MapView",
@@ -15,11 +15,31 @@ require([
     const view = new MapView({
       container: "viewDiv",
       map: map,
-      center: [-80.166320, 40.551708], // Aliquippa coordinates
+      center: [-80.166320, 40.551708], 
       zoom: 10
     });
+
+    let selectedOrigins = new Set(); // Store multiple origin IDs
+    let tripData = {}; // Modified to store trips for multiple origins
+    let clickCount = {}; // Track clicks per block group
+
+    // Create tooltip div right away
+    const tooltip = document.createElement("div");
+    tooltip.id = "tripTooltip";
+    tooltip.style.display = "none";
+    tooltip.style.position = "fixed";
+    tooltip.style.backgroundColor = "white";
+    tooltip.style.padding = "5px";
+    tooltip.style.border = "1px solid black";
+    tooltip.style.borderRadius = "3px";
+    tooltip.style.zIndex = "1000";
+    tooltip.style.pointerEvents = "none";
+    tooltip.style.fontFamily = "Arial, sans-serif";
+    tooltip.style.fontSize = "12px";
+    tooltip.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+    document.body.appendChild(tooltip);
   
-    // 2. Add the Combined BG layer (ID matches BG_ID values)
+    // Add the Combined BG layer (ID matches BG_ID values)
     const combinedBG = new FeatureLayer({
       url: "https://services1.arcgis.com/HmwnYiJTBZ4UkySc/arcgis/rest/services/Ambridge_OD_Merge11/FeatureServer/1",
       id: "Combined_BG",
@@ -143,7 +163,7 @@ require([
     
     map.addMany([combinedBG, odTable, destBG, originBG]);
 
-    // 4. Add the legend widget
+    // Add the legend widget
     const legend = new Legend({
         view: view,
         style: "classic",
@@ -175,7 +195,7 @@ require([
     // Keep the existing view.ui.add
     view.ui.add(legendExpand, "bottom-left");
   
-    // 4. Click handler to identify the BG and toggle related layer
+    // Replace the existing click handler
     view.on("click", function(event) {
         view.hitTest(event).then(function(response) {
             const result = response.results.find(r =>
@@ -185,12 +205,26 @@ require([
                 document.getElementById("sidePanel").style.display = "none";
                 return;
             }
-                
-        
-            // Get clicked block group ID
+
             const clickedBGId = result.graphic.attributes.Block_Group;
-            console.log("Clicked BG_ID:", clickedBGId);
-        
+            
+            // Track clicks for this block group
+            clickCount[clickedBGId] = (clickCount[clickedBGId] || 0) + 1;
+            
+            // Remove if clicked twice
+            if (clickCount[clickedBGId] > 1) {
+                selectedOrigins.delete(clickedBGId);
+                delete clickCount[clickedBGId];
+                delete tripData[clickedBGId];
+                
+                // Refresh the display
+                updateDisplay();
+                return;
+            }
+
+            // Add new origin
+            selectedOrigins.add(clickedBGId);
+            
             // Query the OD table for trips from this origin
             const odTable = map.findLayerById("OD_Table");
             const query = {
@@ -198,73 +232,161 @@ require([
                 outFields: ["Destination_Block_Group", "Trips"],
                 returnGeometry: false
             };
-        
-            // Highlight the clicked block group in red
-            view.graphics.removeAll();
-            result.graphic.symbol = {
-                type: "simple-fill",
-                color: [255, 0, 0, 0.3],
-                outline: { color: [255, 0, 0], width: 2 }
-            };
-            view.graphics.add(result.graphic);
 
-            const sidePanel = document.getElementById("sidePanel");
-            sidePanel.innerHTML = `
-                <div style="text-align: right;">
-                    <button onclick="this.parentElement.parentElement.style.display='none'" 
-                            style="border: none; background: none; cursor: pointer;">✕</button>
-                </div>
-                <h3>Block Group Information</h3>
-                <p><strong>Selected Block Group:</strong> ${clickedBGId}</p>
-            `;
-            sidePanel.style.display = "block";            
-        
-            // Query to get all destinations and their trip counts
+
+
             odTable.queryFeatures(query).then(function(results) {
                 if (!results.features.length) {
-                    console.log("No destinations found for this origin");
+                    console.log("No destinations found for origin:", clickedBGId);
                     return;
                 }
 
-                // Get destination IDs and their trip counts
-                const destData = results.features.map(f => ({
-                    id: f.attributes.Destination_Block_Group,
-                    trips: f.attributes.Trips
-                }));
-                console.log("Destination data:", destData);
-
-                // Query the block groups layer to highlight destinations
-                const bgLayer = map.findLayerById("Combined_BG");
-                const destIds = destData.map(d => `'${d.id}'`).join(",");
-                const bgQuery = bgLayer.createQuery();
-                bgQuery.where = `Block_Group IN (${destIds})`;
-                bgQuery.outFields = ["Block_Group"];
-
-                bgLayer.queryFeatures(bgQuery).then(function(bgResults) {
-                    bgResults.features.forEach(function(f) {
-                        // Find trip count for this destination
-                        const tripCount = destData.find(d => 
-                            d.id === f.attributes.Block_Group).trips;
-                        
-                        // Color based on number of trips
-                        let color;
-                        if (tripCount == 0) color = [255, 255, 255, 0.7];      // White
-                        else if (tripCount <= 5) color = [255, 241, 169, 0.7];      // Light yellow
-                        else if (tripCount <= 15) color = [254, 204, 92, 0.7];  // Yellow
-                        else if (tripCount <= 25) color = [253, 141, 60, 0.7];  // Orange
-                        else if (tripCount <= 50) color = [240, 59, 32, 0.7];   // Red-orange
-                        else color = [189, 0, 38, 0.7];                         // Dark red
-
-                        f.symbol = {
-                            type: "simple-fill",
-                            color: color,
-                            outline: { color: [0, 0, 255], width: 1 }
-                        };
-                        view.graphics.add(f);
-                    });
+                // Store trips for this origin
+                tripData[clickedBGId] = {};
+                results.features.forEach(f => {
+                    const destId = f.attributes.Destination_Block_Group;
+                    tripData[clickedBGId][destId] = f.attributes.Trips;
                 });
+
+                updateDisplay();
             });
         });
     });
 
-  });
+    // Add this new function to handle display updates
+    function updateDisplay() {
+        view.graphics.removeAll();
+
+        // Skip if no origins selected
+        if (selectedOrigins.size === 0) return;
+
+        // Query and highlight selected origins
+        const originLayer = map.findLayerById("Combined_BG");
+        const originIds = Array.from(selectedOrigins).map(id => `'${id}'`).join(",");
+        const originQuery = originLayer.createQuery();
+        originQuery.where = `Block_Group IN (${originIds})`;
+        originQuery.outFields = ["Block_Group"];
+
+        originLayer.queryFeatures(originQuery).then(function(originResults) {
+            // Add highlight graphics for origins
+            originResults.features.forEach(function(f) {
+                const originGraphic = {
+                    geometry: f.geometry,
+                    symbol: {
+                        type: "simple-fill",
+                        color: [255, 0, 0, 0.3],  // Semi-transparent red
+                        outline: { 
+                            color: [255, 0, 0], 
+                            width: 2 
+                        }
+                    }
+                };
+                view.graphics.add(originGraphic);
+            });
+
+            // Calculate combined trips for all destinations
+            let combinedTrips = {};
+            Object.values(tripData).forEach(originData => {
+                Object.entries(originData).forEach(([destId, trips]) => {
+                    combinedTrips[destId] = (combinedTrips[destId] || 0) + trips;
+                });
+            });
+
+            // Query and highlight destinations
+            const bgLayer = map.findLayerById("Combined_BG");
+            const destIds = Object.keys(combinedTrips).map(id => `'${id}'`).join(",");
+            const bgQuery = bgLayer.createQuery();
+            bgQuery.where = `Block_Group IN (${destIds})`;
+            bgQuery.outFields = ["Block_Group"];
+
+            bgLayer.queryFeatures(bgQuery).then(function(bgResults) {
+                bgResults.features.forEach(function(f) {
+                    const tripCount = combinedTrips[f.attributes.Block_Group] || 0;
+                    
+                    // Use existing color logic
+                    let color;
+                    if (tripCount == 0) color = [255, 255, 255, 0.7];
+                    else if (tripCount <= 5) color = [255, 241, 169, 0.7];
+                    else if (tripCount <= 15) color = [254, 204, 92, 0.7];
+                    else if (tripCount <= 25) color = [253, 141, 60, 0.7];
+                    else if (tripCount <= 50) color = [240, 59, 32, 0.7];
+                    else color = [189, 0, 38, 0.7];
+
+                    const destGraphic = {
+                        geometry: f.geometry,
+                        symbol: {
+                            type: "simple-fill",
+                            color: color,
+                            outline: { color: [0, 0, 255], width: 1 }
+                        }
+                    };
+                    view.graphics.add(destGraphic);
+                });
+            });
+        });
+    }
+
+    // Update the pointer-move handler
+    view.on("pointer-move", function(event) {
+        if (selectedOrigins.size === 0) {
+            tooltip.style.display = "none";
+            return;
+        }
+
+        view.hitTest(event).then(function(response) {
+            const result = response.results.find(r =>
+                r.graphic.layer.id === "Combined_BG"
+            );
+            
+            if (result) {
+                const hoveredBGId = result.graphic.attributes.Block_Group;
+                
+                // Check if the hovered block group is any origin block group
+                const originLayer = map.findLayerById("Origin_BG");
+                originLayer.queryFeatures({
+                    where: `Block_Group = '${hoveredBGId}'`,
+                    returnGeometry: false
+                }).then(function(originResults) {
+                    // If it's an origin block group, hide tooltip
+                    if (originResults.features.length > 0) {
+                        tooltip.style.display = "none";
+                        return;
+                    }
+                    
+                    // Calculate combined trips for this destination
+                    let totalTrips = 0;
+                    Object.values(tripData).forEach(originData => {
+                        totalTrips += originData[hoveredBGId] || 0;
+                    });
+                    
+                    // Show tooltip for all destination block groups
+                    tooltip.style.left = event.x + 10 + "px";
+                    tooltip.style.top = event.y + 10 + "px";
+                    tooltip.style.display = "block";
+                    tooltip.innerHTML = `Total Trips: ${totalTrips}`;
+                });
+            } else {
+                tooltip.style.display = "none";
+            }
+        });
+    });
+
+    // Hide tooltip when moving the map
+    view.on("drag", function() {
+        const tooltip = document.getElementById("tripTooltip");
+        if (tooltip) tooltip.style.display = "none";
+    });
+
+    // Add CSS to the head of the document
+    const style = document.createElement("style");
+    style.textContent = `
+        #tripTooltip {
+            display: none;
+            pointer-events: none;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+    `;
+    document.head.appendChild(style);
+});
