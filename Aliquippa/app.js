@@ -183,7 +183,7 @@ require([
         ]
     });
 
-    // Keep the existing Expand widget code
+    // Create an Expand widget for the legend
     const legendExpand = new Expand({
         view: view,
         content: legend,
@@ -192,10 +192,9 @@ require([
         mode: "floating",
     });
 
-    // Keep the existing view.ui.add
+    // Add the legend to the view
     view.ui.add(legendExpand, "bottom-left");
   
-    // Replace the existing click handler
     view.on("click", function(event) {
         view.hitTest(event).then(function(response) {
             const result = response.results.find(r =>
@@ -225,6 +224,37 @@ require([
             // Add new origin
             selectedOrigins.add(clickedBGId);
             
+            // Update side panel content
+            const sidePanel = document.getElementById("sidePanel");
+            let sidePanelContent = `
+                <div style="text-align: right;">
+                    <button onclick="this.parentElement.parentElement.style.display='none'" 
+                            style="border: none; background: none; cursor: pointer;">✕</button>
+                </div>
+                <h3>Selected Block Groups</h3>
+            `;
+
+            // Add information for all selected block groups
+            selectedOrigins.forEach(bgId => {
+                sidePanelContent += `
+                    <div style="margin-bottom: 10px;">
+                        <p><strong>Block Group:</strong> ${bgId}</p>
+                    `;
+                
+                if (tripData[bgId]) {
+                    const totalTrips = Object.values(tripData[bgId]).reduce((sum, trips) => sum + trips, 0);
+                    sidePanelContent += `
+                        <p><strong>Total Outbound Trips:</strong> ${totalTrips}</p>
+                        <hr>
+                    `;
+                }
+                
+                sidePanelContent += `</div>`;
+            });
+
+            sidePanel.innerHTML = sidePanelContent;
+            sidePanel.style.display = "block";
+
             // Query the OD table for trips from this origin
             const odTable = map.findLayerById("OD_Table");
             const query = {
@@ -324,6 +354,40 @@ require([
                 });
             });
         });
+
+        // Update side panel
+        const sidePanel = document.getElementById("sidePanel");
+        if (selectedOrigins.size === 0) {
+            sidePanel.style.display = "none";
+        } else {
+            let sidePanelContent = `
+                <div style="text-align: right;">
+                    <button onclick="this.parentElement.parentElement.style.display='none'" 
+                            style="border: none; background: none; cursor: pointer;">✕</button>
+                </div>
+                <h3>Selected Block Groups</h3>
+            `;
+
+            selectedOrigins.forEach(bgId => {
+                sidePanelContent += `
+                    <div style="margin-bottom: 10px;">
+                        <p><strong>Block Group:</strong> ${bgId}</p>
+                    `;
+                
+                if (tripData[bgId]) {
+                    const totalTrips = Object.values(tripData[bgId]).reduce((sum, trips) => sum + trips, 0);
+                    sidePanelContent += `
+                        <p><strong>Total Outbound Trips:</strong> ${totalTrips}</p>
+                        <hr>
+                    `;
+                }
+                
+                sidePanelContent += `</div>`;
+            });
+
+            sidePanel.innerHTML = sidePanelContent;
+            sidePanel.style.display = "block";
+        }
     }
 
     // Update the pointer-move handler
