@@ -41,7 +41,7 @@ require([
   
     // Add the Combined BG layer (ID matches BG_ID values)
     const combinedBG = new FeatureLayer({
-      url: "https://services1.arcgis.com/HmwnYiJTBZ4UkySc/arcgis/rest/services/Ambridge_OD_Merge11/FeatureServer/1",
+      url: "https://services3.arcgis.com/MV5wh5WkCMqlwISp/arcgis/rest/services/Ambridge_BG_with_OD/FeatureServer/1",
       id: "Combined_BG",
       outFields: ["*"],  // This will fetch all fields
       visible: true,
@@ -124,7 +124,7 @@ require([
     };
 
     const odTable = new FeatureLayer({
-      url: "https://services1.arcgis.com/HmwnYiJTBZ4UkySc/arcgis/rest/services/Ambridge_OD_Merge11/FeatureServer/2",
+      url: "https://services3.arcgis.com/MV5wh5WkCMqlwISp/arcgis/rest/services/Ambridge_BG_with_OD/FeatureServer/2",
       id: "OD_Table",
       outFields: ["*"],  // This will fetch all fields
       visible: true,
@@ -143,7 +143,7 @@ require([
 
     // Add new origin block groups layer
     const originBG = new FeatureLayer({
-        url: "https://services1.arcgis.com/HmwnYiJTBZ4UkySc/arcgis/rest/services/Ambridge_OD_Merge11/FeatureServer/0",
+        url: "https://services3.arcgis.com/MV5wh5WkCMqlwISp/arcgis/rest/services/Ambridge_BG_with_OD/FeatureServer/0",
         id: "Origin_BG",
         outFields: ["*"],
         visible: true,
