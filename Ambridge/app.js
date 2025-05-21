@@ -192,7 +192,6 @@ require([
         mode: "floating",
     });
 
-    // Add the legend to the view
     view.ui.add(legendExpand, "bottom-left");
   
     view.on("click", function(event) {
@@ -206,6 +205,7 @@ require([
             }
 
             const clickedBGId = result.graphic.attributes.Block_Group;
+            const clickedMunicipality = result.graphic.attributes.Municipality;
             
             // Track clicks for this block group
             clickCount[clickedBGId] = (clickCount[clickedBGId] || 0) + 1;
@@ -236,20 +236,33 @@ require([
 
             // Add information for all selected block groups
             selectedOrigins.forEach(bgId => {
-                sidePanelContent += `
-                    <div style="margin-bottom: 10px;">
-                        <p><strong>Block Group:</strong> ${bgId}</p>
-                    `;
-                
-                if (tripData[bgId]) {
-                    const totalTrips = Object.values(tripData[bgId]).reduce((sum, trips) => sum + trips, 0);
+                // Query to get Municipality for this block group
+                const bgLayer = map.findLayerById("Combined_BG");
+                bgLayer.queryFeatures({
+                    where: `Block_Group = '${bgId}'`,
+                    outFields: ["Block_Group", "Municipality"],
+                    returnGeometry: false
+                }).then(function(results) {
+                    const municipality = results.features[0]?.attributes.Municipality || "Unknown";
+                    
                     sidePanelContent += `
-                        <p><strong>Total Outbound Trips:</strong> ${totalTrips}</p>
-                        <hr>
+                        <div style="margin-bottom: 10px;">
+                            <p><strong>Block Group:</strong> ${bgId}</p>
+                            <p><strong>Municipality:</strong> ${municipality}</p>
                     `;
-                }
-                
-                sidePanelContent += `</div>`;
+                    
+                    if (tripData[bgId]) {
+                        const totalTrips = Object.values(tripData[bgId]).reduce((sum, trips) => sum + trips, 0);
+                        sidePanelContent += `
+                            <p><strong>Total Outbound Trips:</strong> ${totalTrips}</p>
+                            <hr>
+                        `;
+                    }
+                    
+                    sidePanelContent += `</div>`;
+                    
+                    sidePanel.innerHTML = sidePanelContent;
+                });
             });
 
             sidePanel.innerHTML = sidePanelContent;
@@ -295,7 +308,7 @@ require([
         const originIds = Array.from(selectedOrigins).map(id => `'${id}'`).join(",");
         const originQuery = originLayer.createQuery();
         originQuery.where = `Block_Group IN (${originIds})`;
-        originQuery.outFields = ["Block_Group"];
+        originQuery.outFields = ["Block_Group","Municipality"];
 
         originLayer.queryFeatures(originQuery).then(function(originResults) {
             // Add highlight graphics for origins
@@ -368,25 +381,40 @@ require([
                 <h3>Selected Block Groups</h3>
             `;
 
-            selectedOrigins.forEach(bgId => {
-                sidePanelContent += `
-                    <div style="margin-bottom: 10px;">
-                        <p><strong>Block Group:</strong> ${bgId}</p>
-                    `;
-                
-                if (tripData[bgId]) {
-                    const totalTrips = Object.values(tripData[bgId]).reduce((sum, trips) => sum + trips, 0);
-                    sidePanelContent += `
-                        <p><strong>Total Outbound Trips:</strong> ${totalTrips}</p>
-                        <hr>
-                    `;
-                }
-                
-                sidePanelContent += `</div>`;
+            const bgLayer = map.findLayerById("Combined_BG");
+            const promises = Array.from(selectedOrigins).map(bgId => {
+                return bgLayer.queryFeatures({
+                    where: `Block_Group = '${bgId}'`,
+                    outFields: ["Block_Group", "Municipality"],
+                    returnGeometry: false
+                });
             });
 
-            sidePanel.innerHTML = sidePanelContent;
-            sidePanel.style.display = "block";
+            Promise.all(promises).then(results => {
+                results.forEach((result, index) => {
+                    const bgId = Array.from(selectedOrigins)[index];
+                    const municipality = result.features[0]?.attributes.Municipality || "Unknown";
+                    
+                    sidePanelContent += `
+                        <div style="margin-bottom: 10px;">
+                            <p><strong>Block Group:</strong> ${bgId}</p>
+                            <p><strong>Municipality:</strong> ${municipality}</p>
+                    `;
+                    
+                    if (tripData[bgId]) {
+                        const totalTrips = Object.values(tripData[bgId]).reduce((sum, trips) => sum + trips, 0);
+                        sidePanelContent += `
+                            <p><strong>Total Outbound Trips:</strong> ${totalTrips}</p>
+                            <hr>
+                        `;
+                    }
+                    
+                    sidePanelContent += `</div>`;
+                });
+                
+                sidePanel.innerHTML = sidePanelContent;
+                sidePanel.style.display = "block";
+            });
         }
     }
 
