@@ -1,4 +1,8 @@
-# BCTA_Microtransit
+### 🗺️ OD-Pair Accessibility Maps
 
-1. OD-Pair Accessibility Map with Day-Time Filter: https://spcgis.github.io/BCTA_Microtransit/BeaverCounty/
-2. OD-Pair Accessibility Map: https://spcgis.github.io/BCTA_Microtransit/Ambridge/ | https://spcgis.github.io/BCTA_Microtransit/Aliquippa/ | https://spcgis.github.io/BCTA_Microtransit/BeaverFalls/
+|                 Region               |                                 Link                                 |
+|--------------------------------------|----------------------------------------------------------------------|
+| Beaver County(With Day-Time Filter)  | [View Map](https://spcgis.github.io/BCTA_Microtransit/BeaverCounty/) |
+| Ambridge                             | [View Map](https://spcgis.github.io/BCTA_Microtransit/Ambridge/)     |
+| Aliquippa                            | [View Map](https://spcgis.github.io/BCTA_Microtransit/Aliquippa/)    |
+| Beaver Falls                         | [View Map](https://spcgis.github.io/BCTA_Microtransit/BeaverFalls/)  |
